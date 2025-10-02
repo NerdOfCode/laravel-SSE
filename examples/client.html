@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Client Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.stop {
+            background-color: #f44336;
+        }
+        button.stop:hover {
+            background-color: #da190b;
+        }
+        #status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        #status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        #status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        #events {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .event {
+            margin: 5px 0;
+            padding: 8px;
+            background-color: white;
+            border-left: 3px solid #4CAF50;
+            border-radius: 3px;
+        }
+        .event-type {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .event-time {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Laravel SSE Client Example</h2>
+
+        <div>
+            <label for="endpoint">Endpoint URL:</label>
+            <input type="text" id="endpoint" value="/counter" style="width: 300px; padding: 5px;">
+        </div>
+
+        <div style="margin-top: 15px;">
+            <button onclick="connect()">Connect</button>
+            <button class="stop" onclick="disconnect()">Disconnect</button>
+            <button onclick="clearEvents()">Clear Events</button>
+        </div>
+
+        <div id="status" class="disconnected">Disconnected</div>
+
+        <h3>Events:</h3>
+        <div id="events"></div>
+    </div>
+
+    <div class="container">
+        <h3>Quick Examples</h3>
+        <button onclick="setEndpoint('/counter')">Counter</button>
+        <button onclick="setEndpoint('/progress')">Progress</button>
+        <button onclick="setEndpoint('/clock')">Clock</button>
+        <button onclick="setEndpoint('/random')">Random Numbers</button>
+        <button onclick="setEndpoint('/messages')">Messages</button>
+        <button onclick="setEndpoint('/server-stats')">Server Stats</button>
+    </div>
+
+    <script>
+        let eventSource = null;
+
+        function setEndpoint(endpoint) {
+            document.getElementById('endpoint').value = endpoint;
+        }
+
+        function connect() {
+            const endpoint = document.getElementById('endpoint').value;
+
+            if (eventSource) {
+                disconnect();
+            }
+
+            eventSource = new EventSource(endpoint);
+
+            eventSource.onopen = function(e) {
+                updateStatus('Connected', true);
+                addEvent('System', 'Connection opened', {});
+            };
+
+            eventSource.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    addEvent('message', 'Data received', data, e.lastEventId);
+                } catch (error) {
+                    addEvent('message', 'Data received', e.data, e.lastEventId);
+                }
+            };
+
+            eventSource.onerror = function(e) {
+                updateStatus('Error - Reconnecting...', false);
+                addEvent('System', 'Connection error', {
+                    readyState: eventSource.readyState,
+                    error: e
+                });
+            };
+
+            // Listen for custom event types
+            eventSource.addEventListener('progress', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('progress', 'Progress update', data, e.lastEventId);
+            });
+
+            eventSource.addEventListener('done', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('done', 'Complete!', data, e.lastEventId);
+            });
+
+            eventSource.addEventListener('clock', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('clock', 'Clock update', data, e.lastEventId);
+            });
+
+            eventSource.addEventListener('random', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('random', 'Random number', data, e.lastEventId);
+            });
+
+            eventSource.addEventListener('message', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('message', 'Message received', data, e.lastEventId);
+            });
+
+            eventSource.addEventListener('stats', function(e) {
+                const data = JSON.parse(e.data);
+                addEvent('stats', 'Server statistics', data, e.lastEventId);
+            });
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                updateStatus('Disconnected', false);
+                addEvent('System', 'Connection closed', {});
+            }
+        }
+
+        function updateStatus(message, isConnected) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = isConnected ? 'connected' : 'disconnected';
+        }
+
+        function addEvent(type, message, data, eventId = null) {
+            const eventsDiv = document.getElementById('events');
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+
+            const time = new Date().toLocaleTimeString();
+            const idInfo = eventId ? ` [ID: ${eventId}]` : '';
+
+            eventDiv.innerHTML = `
+                <div class="event-type">${type}${idInfo}</div>
+                <div>${message}</div>
+                <div><pre style="margin: 5px 0; font-size: 0.9em;">${JSON.stringify(data, null, 2)}</pre></div>
+                <div class="event-time">${time}</div>
+            `;
+
+            eventsDiv.insertBefore(eventDiv, eventsDiv.firstChild);
+
+            // Limit to 50 events
+            while (eventsDiv.children.length > 50) {
+                eventsDiv.removeChild(eventsDiv.lastChild);
+            }
+        }
+
+        function clearEvents() {
+            document.getElementById('events').innerHTML = '';
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            disconnect();
+        });
+    </script>
+</body>
+</html>

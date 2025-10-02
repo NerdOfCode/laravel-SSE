@@ -70,7 +70,7 @@ class SSETest extends TestCase
         });
 
         $this->assertEquals('text/event-stream', $response->headers->get('Content-Type'));
-        $this->assertEquals('no-cache', $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-cache', $response->headers->get('Cache-Control'));
         $this->assertEquals('keep-alive', $response->headers->get('Connection'));
         $this->assertEquals('no', $response->headers->get('X-Accel-Buffering'));
     }

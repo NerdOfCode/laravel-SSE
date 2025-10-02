@@ -11,6 +11,7 @@ class StandaloneSSE
     protected ?string $eventId = null;
     protected array $headers = [];
     protected int $executionTime = 0;
+    protected bool $isStreaming = false;
 
     public function __construct()
     {
@@ -53,6 +54,7 @@ class StandaloneSSE
 
     public function stream(callable $callback): void
     {
+        $this->isStreaming = true;
         $this->sendHeaders();
         $this->configureEnvironment();
         $this->sendRetry();
@@ -74,18 +76,12 @@ class StandaloneSSE
         }
 
         @ini_set('zlib.output_compression', '0');
-        @ini_set('implicit_flush', '1');
 
         if ($this->executionTime > 0) {
-            set_time_limit($this->executionTime);
+            @set_time_limit($this->executionTime);
         } else {
-            set_time_limit(0);
+            @set_time_limit(0);
         }
-
-        if (ob_get_level()) {
-            ob_end_flush();
-        }
-        ob_implicit_flush(true);
     }
 
     protected function sendRetry(): void
@@ -137,6 +133,12 @@ class StandaloneSSE
 
     protected function flush(): void
     {
+        // Only flush when actively streaming (not in unit tests)
+        if (!$this->isStreaming) {
+            return;
+        }
+
+        // Flush all output buffers to send data to client
         if (ob_get_level() > 0) {
             @ob_flush();
         }

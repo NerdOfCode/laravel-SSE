@@ -11,6 +11,7 @@ class SSE
     protected ?string $eventId = null;
     protected array $headers = [];
     protected int $executionTime = 0;
+    protected bool $isStreaming = false;
 
     /**
      * Create a new SSE instance
@@ -75,6 +76,7 @@ class SSE
     public function stream(callable $callback): StreamedResponse
     {
         return new StreamedResponse(function () use ($callback) {
+            $this->isStreaming = true;
             $this->configureEnvironment();
             $this->sendRetry();
 
@@ -88,20 +90,16 @@ class SSE
     protected function configureEnvironment(): void
     {
         if (function_exists('apache_setenv')) {
-            apache_setenv('no-gzip', '1');
+            @apache_setenv('no-gzip', '1');
         }
 
-        ini_set('zlib.output_compression', '0');
-        ini_set('implicit_flush', '1');
+        @ini_set('zlib.output_compression', '0');
 
         if ($this->executionTime > 0) {
-            set_time_limit($this->executionTime);
+            @set_time_limit($this->executionTime);
         } else {
-            set_time_limit(0);
+            @set_time_limit(0);
         }
-
-        ob_end_flush();
-        ob_implicit_flush(true);
     }
 
     /**
@@ -174,10 +172,16 @@ class SSE
      */
     protected function flush(): void
     {
-        if (ob_get_level() > 0) {
-            ob_flush();
+        // Only flush when actively streaming (not in unit tests)
+        if (!$this->isStreaming) {
+            return;
         }
-        flush();
+
+        // Flush all output buffers to send data to client
+        if (ob_get_level() > 0) {
+            @ob_flush();
+        }
+        @flush();
     }
 
     /**

@@ -65,17 +65,9 @@ class SSEServiceProviderTest extends TestCase
 
     public function test_sse_can_be_resolved_via_dependency_injection(): void
     {
-        $controller = new class {
-            public SSE $sse;
+        $resolved = $this->app->make(SSE::class);
 
-            public function __construct(SSE $sse)
-            {
-                $this->sse = $sse;
-            }
-        };
-
-        $resolved = $this->app->make(get_class($controller));
-
-        $this->assertInstanceOf(SSE::class, $resolved->sse);
+        $this->assertInstanceOf(SSE::class, $resolved);
+        $this->assertSame($this->app->make('sse'), $resolved);
     }
 }
